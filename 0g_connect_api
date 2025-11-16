@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""
+0G Node Connection Script
+Connects to a 0G JSON-RPC endpoint, checks sync status & prints latest block.
+Works with 0G Storage & 0G AI networks.
+
+Author: @bullishether_
+Date:   2025-11-16
+"""
+
+import json
+import sys
+from typing import Dict, Any
+
+import requests
+
+# ========================= CONFIG =========================
+# Choose your network:
+# - 0G Storage Mainnet:  https://rpc.storage.0g.ai
+# - 0G Storage Testnet:  https://rpc-testnet.storage.0g.ai
+# - 0G AI Mainnet:       https://rpc.ai.0g.ai
+# - 0G AI Testnet:       https://rpc-testnet.ai.0g.ai
+
+RPC_URL = "https://rpc.storage.0g.ai"   # ← Change here if needed
+
+# Optional: HTTP headers (some nodes require User-Agent)
+HEADERS = {
+    "Content-Type": "application/json",
+    "User-Agent": "0g-node-connector/1.0 (+https://x.com/bullishether_)"
+}
+
+# ======================= HELPERS =========================
+def rpc_call(method: str, params: list = None) -> Dict[str, Any]:
+    """Send a JSON-RPC request and return parsed response."""
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params or []
+    }
+    try:
+        resp = requests.post(RPC_URL, headers=HEADERS, json=payload, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        if "error" in data:
+            raise RuntimeError(f"RPC Error: {data['error']}")
+        return data["result"]
+    except requests.RequestException as e:
+        print(f"❌ Connection failed: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        sys.exit(1)
+
+
+def get_node_info() -> Dict[str, Any]:
+    """Fetch net_version, chainId, and protocolVersion."""
+    return {
+        "net_version": rpc_call("net_version"),
+        "chain_id": rpc_call("eth_chainId"),
+        "protocol": rpc_call("eth_protocolVersion"),
+    }
+
+
+def get_sync_status() -> Dict[str, Any]:
+    """Check if node is syncing."""
+    return rpc_call("eth_syncing")
+
+
+def get_latest_block() -> int:
+    """Return latest block number (decimal)."""
+    hex_block = rpc_call("eth_blockNumber")
+    return int(hex_block, 16)
+
+
+# ========================= MAIN =========================
+def main():
+    print("🔗 Connecting to 0G node...")
+    print(f"   RPC: {RPC_URL}\n")
+
+    # 1. Node info
+    info = get_node_info()
+    print("✅ Node Info")
+    print(f"   Network ID : {info['net_version']}")
+    print(f"   Chain ID   : {int(info['chain_id'], 16)}")
+    print(f"   Protocol   : {info['protocol']}\n")
+
+    # 2. Sync status
+    sync = get_sync_status()
+    if sync is False:
+        print("✅ Node is fully synced.")
+    else:
+        print("⚠️  Node is syncing...")
+        print(f"   Current : {int(sync['currentBlock'], 16)}")
+        print(f"   Highest : {int(sync['highestBlock'], 16)}")
+
+    # 3. Latest block
+    block_num = get_latest_block()
+    print(f"\n🧱 Latest Block #: {block_num:,}")
+    print("\n🎉 You're connected! Start building on 0G.")
+
+if __name__ == "__main__":
+    main()
